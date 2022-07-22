@@ -1,9 +1,5 @@
 //! impl bacon's cycle collector: http://link.springer.com/10.1007/3-540-45337-7_12
-use std::{
-    cell::Cell,
-    fmt::Debug,
-    sync::{Mutex, Weak, Arc},
-};
+use std::{cell::Cell, fmt::Debug, sync::Weak};
 
 use core::cell::RefCell;
 use core::ptr::NonNull;
@@ -32,21 +28,61 @@ pub enum Color {
     Orange,
 }
 
-/// one Roots for one virtual Machine
+// TODO: understand NonNull can be safe?
+type CcRef = NonNull<dyn CcBoxPtr>;
 
-pub struct Roots {
-    roots: RefCell<Vec<NonNull<dyn CcBoxPtr>>>,
+/// one CycleCollector for one virtual Machine
+pub struct CycleCollector {
+    roots: RefCell<Vec<CcRef>>,
 }
 
-type RootsRef = Arc<Roots>;
+// type RootsRef = Arc<CycleCollector>;
 
-impl Roots{
-    pub fn add_root(&self, box_ptr: NonNull<dyn CcBoxPtr>) {
+impl CycleCollector {
+    pub fn add_root(&self, box_ptr: CcRef) {
         let mut vec = self.roots.borrow_mut();
         vec.push(box_ptr);
-}
-}
+    }
 
+    pub fn collect_cycles(&self) {
+        self.mark_roots();
+        self.scan_roots();
+        self.collect_roots();
+    }
+
+    fn mark_roots(&self) {
+        let mut new_roots: Vec<_> = self
+            .roots
+            .borrow_mut()
+            .drain(..)
+            .filter(|s| {
+                // TODO: check if this is safe!
+                let s = unsafe { s.as_ref() };
+                if s.color() == Color::Purple {
+                    s.mark_gray();
+                    true
+                } else {
+                    s.data().buffered.set(false);
+                    if s.color() == Color::Black && s.strong() == 0 {
+                        s.free();
+                    }
+                    false
+                }
+            })
+            .collect();
+        self.roots.borrow_mut().append(&mut new_roots);
+    }
+
+    fn scan_roots(&self) {
+        for s in self.roots.borrow_mut().iter() {
+            // TODO: check if this is safe!
+            let s = unsafe { s.as_ref() };
+            s.scan();
+        }
+    }
+
+    fn collect_roots(&self) {}
+}
 
 #[doc(hidden)]
 pub struct CcBoxData {
@@ -54,7 +90,25 @@ pub struct CcBoxData {
     weak: Cell<usize>,
     buffered: Cell<bool>,
     color: Cell<Color>,
-    root: Weak<Roots>,
+    root: Weak<CycleCollector>,
+}
+
+impl CcBoxData {
+    /*
+    There is an implicit weak pointer owned by all the strong
+    pointers, which ensures that the weak destructor never frees
+    the allocation while the strong destructor is running, even
+    if the weak pointer is stored inside the strong one.
+    */
+    pub fn new(root: Weak<CycleCollector>) -> Self {
+        Self {
+            strong: 1.into(),
+            weak: 1.into(),
+            buffered: false.into(),
+            color: Color::Black.into(),
+            root,
+        }
+    }
 }
 
 /// A trait that informs cycle collector how to find memory that is owned by a
@@ -72,21 +126,11 @@ pub trait Trace {
 /// by an instance of something.
 pub type Tracer<'a> = dyn FnMut(&(dyn CcBoxPtr + 'static)) + 'a;
 
-impl Debug for dyn CcBoxPtr {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!(
-            "(strong={}, weak={}, buffered={}, color={:?})",
-            self.strong(),
-            self.weak(),
-            self.buffered(),
-            self.color()
-        ))
-    }
-}
-
 pub trait CcBoxPtr: Trace + Debug {
     /// Get this `CcBoxPtr`'s CcBoxData.
     fn data(&self) -> &CcBoxData;
+
+    fn get_mut(&self) -> CcRef;
 
     /// Get the color of this node.
     #[inline]
@@ -107,51 +151,99 @@ pub trait CcBoxPtr: Trace + Debug {
         self.data().strong.get()
     }
 
-    /// Increment this node's strong reference count.
+    /// cresponding to `Increment(S)`in paper
     #[inline]
-    fn inc_strong(&self) {
-        self.data().strong.set(self.strong() + 1);
+    fn increment(&self) {
+        self.inc_strong();
         self.data().color.set(Color::Black);
     }
 
-    /// Decrement this node's strong reference count.
-    /// 
-    /// cresponding to `Decrement(S)`in paper
+    /// Only Increment this node's strong reference count.
+    #[inline]
+    fn inc_strong(&self) {
+        self.data().strong.set(self.strong() + 1);
+    }
+
+    /// Only dec strong ref and do nothing more
     #[inline]
     fn dec_strong(&self) {
         self.data().strong.set(self.strong() - 1);
-        if self.strong() == 0{
+    }
+
+    /// Decrement this node's strong reference count.
+    ///
+    /// crosponding to `Decrement(S)`in paper
+    #[inline]
+    fn decrement(&self) {
+        self.dec_strong();
+        if self.strong() == 0 {
             self.release()
-        }else{
+        } else {
             self.possible_root()
         }
     }
 
     /// .
-    fn release(&self){
-        self.trace(&mut |ch|{
-            ch.dec_strong()
-        });
+    fn release(&self) {
+        self.trace(&mut |ch| ch.dec_strong());
         self.data().color.set(Color::Black);
-        if !self.buffered(){
+        if !self.buffered() {
             self.free();
         }
     }
 
-    fn possible_root(&self){
-        if self.color() != Color::Purple{
+    fn possible_root(&self) {
+        if self.color() != Color::Purple {
             self.data().color.set(Color::Purple);
-            if !self.buffered(){
+            if !self.buffered() {
                 self.data().buffered.set(true);
                 {
-                    if let Some(root) = self.data().root.upgrade(){
-                        let ptr: NonNull<dyn CcBoxPtr> = NonNull::new(self as *mut _).expect("ptr is null!");;
-                        root.add_root(ptr);
-                        
+                    if let Some(root) = self.data().root.upgrade() {
+                        root.add_root(self.get_mut());
                     }
                 }
-                
             }
+        }
+    }
+
+    fn mark_gray(&self) {
+        if self.color() != Color::Gray {
+            self.data().color.set(Color::Gray);
+            self.trace(&mut |ch| {
+                ch.dec_strong();
+                ch.mark_gray();
+            });
+        }
+    }
+
+    fn scan(&self) {
+        if self.color() == Color::Gray {
+            if self.strong() > 0 {
+                todo!()
+            } else {
+                self.data().color.set(Color::White);
+                self.trace(&mut |ch| {
+                    ch.scan();
+                })
+            }
+        }
+    }
+
+    fn scan_black(&self) {
+        self.data().color.set(Color::Black);
+        self.trace(&mut |ch| {
+            ch.inc_strong();
+            if ch.color() != Color::Black {
+                ch.scan_black();
+            }
+        })
+    }
+
+    fn collect_white(&self) {
+        if self.color() != Color::White && !self.buffered() {
+            self.data().color.set(Color::Black);
+            self.trace(&mut |ch| ch.collect_white());
+            self.free();
         }
     }
 
@@ -178,7 +270,6 @@ pub trait CcBoxPtr: Trace + Debug {
     }
 }
 
-#[inline]
-fn noop() {}
-
-pub fn collect_cycles(roots: &mut Roots) {}
+pub fn collect_cycles(roots: &mut CycleCollector) {
+    roots.collect_cycles();
+}

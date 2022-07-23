@@ -1,8 +1,8 @@
-use crate::{CcBoxData, CcRef, Color, CycleCollector, Trace};
+use crate::{CcBoxMetaData, CcRef, Color, CycleCollector, Trace};
 
 pub trait CcBoxPtr: Trace {
     /// Get this `CcBoxPtr`'s CcBoxData.
-    fn data(&self) -> &CcBoxData;
+    fn data(&self) -> &CcBoxMetaData;
 
     fn get_ptr(&self) -> CcRef;
 

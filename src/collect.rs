@@ -4,7 +4,7 @@ use std::{cell::Cell, fmt::Debug, sync::{Weak, Arc}};
 use core::cell::RefCell;
 use core::ptr::NonNull;
 
-use crate::{Color, CcBoxData, CcBoxPtr};
+use crate::{Color, CcBoxMetaData, CcBoxPtr};
 // TODO: understand NonNull can be safe?
 pub type CcRef = NonNull<dyn CcBoxPtr>;
 

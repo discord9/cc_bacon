@@ -40,7 +40,7 @@ pub enum Color {
 }
 
 #[doc(hidden)]
-pub struct CcBoxData {
+pub struct CcBoxMetaData {
     strong: Cell<usize>,
     weak: Cell<usize>,
     buffered: Cell<bool>,
@@ -48,7 +48,7 @@ pub struct CcBoxData {
     root: Weak<CycleCollector>,
 }
 
-impl CcBoxData {
+impl CcBoxMetaData {
     /*
     There is an implicit weak pointer owned by all the strong
     pointers, which ensures that the weak destructor never frees
@@ -68,7 +68,7 @@ impl CcBoxData {
 
 struct CcBox<T: Trace> {
     value: T,
-    data: CcBoxData,
+    metadata: CcBoxMetaData,
 }
 
 impl<T: Trace> Trace for Cc<T> {
@@ -86,8 +86,8 @@ impl<T: Trace> Trace for CcBox<T> {
 }
 
 impl<T: 'static + Trace> CcBoxPtr for CcBox<T> {
-    fn data(&self) -> &CcBoxData {
-        &self.data
+    fn data(&self) -> &CcBoxMetaData {
+        &self.metadata
     }
 
     fn get_ptr(&self) -> CcRef {
@@ -103,7 +103,7 @@ impl<T: 'static + Trace> CcBoxPtr for CcBox<T> {
 #[doc(hidden)]
 impl<T: Trace> CcBoxPtr for Cc<T> {
     #[inline(always)]
-    fn data(&self) -> &CcBoxData {
+    fn data(&self) -> &CcBoxMetaData {
         unsafe {
             self._ptr.as_ref().data()
         }
@@ -133,7 +133,7 @@ impl<T: Trace> Cc<T> {
             Cc {
                 _ptr: NonNull::new_unchecked(Box::into_raw(Box::new(CcBox {
                     value,
-                    data: CcBoxData::with(Arc::downgrade(roots)),
+                    metadata: CcBoxMetaData::with(Arc::downgrade(roots)),
                 }))),
             }
         }

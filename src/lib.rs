@@ -12,7 +12,7 @@ use std::{
     sync::{Arc, Weak},
 };
 
-pub use box_ptr::CcBoxPtr;
+pub use box_ptr::{collect_cycles, CcBoxPtr};
 use collect::RootsRef;
 pub use collect::{CcPtr, CycleCollector};
 use dealloc::free;
@@ -77,11 +77,11 @@ struct CcBox<T: Trace> {
 impl<T: Trace> Trace for Cc<T> {
     fn trace(&self, tracer: &mut Tracer) {
         dbg!("Call trace from Cc");
-        Trace::trace(unsafe {self._ptr.as_ref() }, tracer)
-        /* 
+        /*Trace::trace(unsafe {self._ptr.as_ref() }, tracer)
+         */
         unsafe {
             tracer(self._ptr.as_ref());
-        }*/
+        }
     }
 }
 
@@ -168,6 +168,15 @@ impl<T: Trace> Clone for Cc<T> {
 impl<T: Trace> Drop for Cc<T> {
     fn drop(&mut self) {
         dbg!("Cc Drop here.");
-        self.decrement()
+        if self.strong() > 0 {
+            self.dec_strong();
+            // means only this Cc point to CcBox
+            if self.strong() == 0 {
+                self.release();
+            } else {
+                dbg!("call possible root");
+                self.possible_root()
+            }
+        }
     }
 }

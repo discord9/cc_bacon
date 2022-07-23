@@ -1,4 +1,4 @@
-use core::panic;
+
 
 use crate::{CcBoxMetaData, CcPtr, Color, CycleCollector, Trace};
 
@@ -58,15 +58,24 @@ pub trait CcBoxPtr: Trace {
             if self.strong() == 0 {
                 self.release()
             } else {
+                dbg!("call possible root");
                 self.possible_root()
             }
+        }
+        dbg!(self.strong());
+        if let Some(root) = self.metadata().root.upgrade() {
+            dbg!(root);
         }
     }
 
     /// .
     fn release(&self) {
         debug_assert_eq!(self.strong(), 0);
-        self.trace(&mut |ch| ch.decrement());
+        // self.trace(&mut |ch| ch.decrement());
+        let obj = unsafe {
+            self.get_ptr().as_ref()
+        };
+        obj.trace(&mut |ch| ch.decrement());
         self.metadata().color.set(Color::Black);
         if !self.buffered() {
             self.free();
@@ -152,6 +161,6 @@ pub trait CcBoxPtr: Trace {
 }
 
 /// .
-pub fn collect_cycles(roots: &mut CycleCollector) {
+pub fn collect_cycles(roots: &CycleCollector) {
     roots.collect_cycles();
 }

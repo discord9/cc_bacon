@@ -12,7 +12,7 @@ unsafe fn deallocate(ptr: NonNull<dyn CcBoxPtr>) {
 /// Deallocate the box if possible. `s` should already have been dropped.
 pub unsafe fn free(mut s: CcPtr) {
     dbg!("Called free in here.");
-    debug_assert!(s.as_mut().strong() == 0);
+    debug_assert_eq!(s.as_mut().strong(), 0);
     debug_assert!(!s.as_mut().buffered());
 
     // Remove the implicit "strong weak" pointer now that we've destroyed

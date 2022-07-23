@@ -1,10 +1,10 @@
-use crate::{CcBoxMetaData, CcRef, Color, CycleCollector, Trace};
+use crate::{CcBoxMetaData, CcPtr, Color, CycleCollector, Trace};
 
 pub trait CcBoxPtr: Trace {
     /// Get this `CcBoxPtr`'s [`CcBoxMetaData`].
     fn metadata(&self) -> &CcBoxMetaData;
 
-    fn get_ptr(&self) -> CcRef;
+    fn get_ptr(&self) -> CcPtr;
 
     /// Get the color of this node.
     #[inline]
@@ -67,6 +67,8 @@ pub trait CcBoxPtr: Trace {
         }
     }
 
+    fn free(&self);
+
     fn possible_root(&self) {
         if self.color() != Color::Purple {
             self.metadata().color.set(Color::Purple);
@@ -74,10 +76,9 @@ pub trait CcBoxPtr: Trace {
                 self.metadata().buffered.set(true);
                 if let Some(root) = self.metadata().root.upgrade() {
                     root.add_root(self.get_ptr());
-                }else {
+                } else {
                     // if roots already didn't exist, free？
                     self.free();
-                    todo!()
                 }
             }
         }
@@ -124,9 +125,6 @@ pub trait CcBoxPtr: Trace {
         }
     }
 
-    /// free the object, drop?(TODO: make it work or what)
-    fn free(&self);
-
     /// Get this node's weak reference count, including the "strong weak"
     /// reference.
     #[inline]
@@ -147,6 +145,7 @@ pub trait CcBoxPtr: Trace {
     }
 }
 
+/// .
 pub fn collect_cycles(roots: &mut CycleCollector) {
     roots.collect_cycles();
 }

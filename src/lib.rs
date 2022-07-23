@@ -1,18 +1,21 @@
 mod box_ptr;
 mod collect;
+mod dealloc;
 #[cfg(test)]
 mod tests;
 mod trace;
 use std::{
     cell::Cell,
     fmt::Debug,
+    ops::Deref,
     ptr::NonNull,
-    sync::{Arc, Weak}, ops::Deref,
+    sync::{Arc, Weak},
 };
 
 pub use box_ptr::CcBoxPtr;
 use collect::RootsRef;
-pub use collect::{CcRef, CycleCollector};
+pub use collect::{CcPtr, CycleCollector};
+use dealloc::free;
 pub use trace::{Trace, Tracer};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -90,13 +93,13 @@ impl<T: 'static + Trace> CcBoxPtr for CcBox<T> {
         &self.metadata
     }
 
-    fn get_ptr(&self) -> CcRef {
+    fn get_ptr(&self) -> CcPtr {
         // CcBox's mutability is interior, so?
         NonNull::from(self)
     }
 
     fn free(&self) {
-        unreachable!()
+        unsafe { free(self.get_ptr()) };
     }
 }
 
@@ -104,17 +107,15 @@ impl<T: 'static + Trace> CcBoxPtr for CcBox<T> {
 impl<T: Trace> CcBoxPtr for Cc<T> {
     #[inline(always)]
     fn metadata(&self) -> &CcBoxMetaData {
-        unsafe {
-            self._ptr.as_ref().metadata()
-        }
+        unsafe { self._ptr.as_ref().metadata() }
     }
 
-    fn get_ptr(&self) -> CcRef {
+    fn get_ptr(&self) -> CcPtr {
         self._ptr
     }
 
     fn free(&self) {
-        todo!()
+        unsafe { free(self.get_ptr()) };
     }
 }
 
@@ -157,5 +158,11 @@ impl<T: Trace> Clone for Cc<T> {
     fn clone(&self) -> Self {
         self.inc_strong();
         Cc { _ptr: self._ptr }
+    }
+}
+
+impl<T: Trace> Drop for Cc<T> {
+    fn drop(&mut self) {
+        self.decrement()
     }
 }

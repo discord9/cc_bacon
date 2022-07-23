@@ -1,22 +1,34 @@
 //! impl bacon's cycle collector: http://link.springer.com/10.1007/3-540-45337-7_12
-use std::{cell::Cell, fmt::Debug, sync::{Weak, Arc}};
+use std::sync::Arc;
 
 use core::cell::RefCell;
 use core::ptr::NonNull;
 
-use crate::{Color, CcBoxMetaData, CcBoxPtr};
+use crate::{CcBoxPtr, Color};
 // TODO: understand NonNull can be safe?
-pub type CcRef = NonNull<dyn CcBoxPtr>;
+pub type CcPtr = NonNull<dyn CcBoxPtr>;
 
 /// one CycleCollector for one virtual Machine
 pub struct CycleCollector {
-    roots: RefCell<Vec<CcRef>>,
+    roots: RefCell<Vec<CcPtr>>,
 }
 
 pub type RootsRef = Arc<CycleCollector>;
 
+impl Default for CycleCollector {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CycleCollector {
-    pub fn add_root(&self, box_ptr: CcRef) {
+    pub fn new() -> Self {
+        Self {
+            roots: Vec::new().into(),
+        }
+    }
+
+    pub fn add_root(&self, box_ptr: CcPtr) {
         let mut vec = self.roots.borrow_mut();
         vec.push(box_ptr);
     }
@@ -59,8 +71,7 @@ impl CycleCollector {
     }
 
     fn collect_roots(&self) {
-        self
-            .roots
+        self.roots
             .borrow_mut()
             .drain(..)
             .map(|s| {
@@ -72,7 +83,3 @@ impl CycleCollector {
             .count();
     }
 }
-
-
-
-

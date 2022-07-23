@@ -1,5 +1,5 @@
 use super::*;
 
-struct testObj{
+struct testObj {
     i: usize,
 }

@@ -72,12 +72,17 @@ pub trait CcBoxPtr: Trace {
         obj.trace(&mut |ch| ch.decrement());
         self.metadata().color.set(Color::Black);
         if !self.buffered() {
-            self.free();
+            unsafe {
+                self.free();
+            }
+            
         }
     }
 
     /// Deallocate the box if possible. `s` should already have been dropped.
-    fn free(&self);
+    /// # Safety
+    /// can only be called after dropped
+    unsafe fn free(&self);
 
     fn possible_root(&self) {
         if self.color() != Color::Purple {
@@ -134,7 +139,9 @@ pub trait CcBoxPtr: Trace {
         if self.color() == Color::White && !self.buffered() {
             self.metadata().color.set(Color::Black);
             self.trace(&mut |ch| ch.collect_white());
-            self.free();
+            unsafe {
+                self.free();
+            }
         }
     }
 

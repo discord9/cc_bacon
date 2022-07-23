@@ -102,8 +102,8 @@ impl<T: 'static + Trace> CcBoxPtr for CcBox<T> {
         NonNull::from(self)
     }
 
-    fn free(&self) {
-        unsafe { free(self.get_ptr()) };
+    unsafe fn free(&self) {
+        free(self.get_ptr());
     }
 }
 
@@ -118,8 +118,8 @@ impl<T: Trace> CcBoxPtr for Cc<T> {
         self._ptr
     }
 
-    fn free(&self) {
-        unsafe { free(self.get_ptr()) };
+    unsafe fn free(&self) {
+        free(self.get_ptr());
     }
 }
 

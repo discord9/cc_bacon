@@ -54,7 +54,9 @@ impl CycleCollector {
                 } else {
                     s.metadata().buffered.set(false);
                     if s.color() == Color::Black && s.strong() == 0 {
-                        s.free();
+                        unsafe {
+                            s.free();
+                        }
                     }
                     false
                 }

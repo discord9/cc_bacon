@@ -168,15 +168,6 @@ impl<T: Trace> Clone for Cc<T> {
 impl<T: Trace> Drop for Cc<T> {
     fn drop(&mut self) {
         dbg!("Cc Drop here.");
-        if self.strong() > 0 {
-            self.dec_strong();
-            // means only this Cc point to CcBox
-            if self.strong() == 0 {
-                self.release();
-            } else {
-                dbg!("call possible root");
-                self.possible_root()
-            }
-        }
+        self.decrement();
     }
 }

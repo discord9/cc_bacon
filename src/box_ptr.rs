@@ -51,7 +51,7 @@ pub trait CcBoxPtr: Trace {
     /// crosponding to `Decrement(S)`in paper
     #[inline]
     fn decrement(&self) {
-        dbg!(self.strong());
+        dbg!("Before dec: {}", self.strong());
         dbg!(self.get_ptr());
         if self.strong() > 0 {
             self.dec_strong();
@@ -62,9 +62,9 @@ pub trait CcBoxPtr: Trace {
                 self.possible_root()
             }
         }
-        dbg!(self.strong());
+        dbg!("After dec: {}", self.strong());
         if let Some(root) = self.metadata().root.upgrade() {
-            dbg!(root);
+            dbg!("Root: {}", root);
         }
     }
 
@@ -133,7 +133,7 @@ pub trait CcBoxPtr: Trace {
     }
 
     fn collect_white(&self) {
-        if self.color() != Color::White && !self.buffered() {
+        if self.color() == Color::White && !self.buffered() {
             self.metadata().color.set(Color::Black);
             self.trace(&mut |ch| ch.collect_white());
             self.free();

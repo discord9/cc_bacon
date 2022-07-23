@@ -76,14 +76,18 @@ struct CcBox<T: Trace> {
 
 impl<T: Trace> Trace for Cc<T> {
     fn trace(&self, tracer: &mut Tracer) {
+        dbg!("Call trace from Cc");
+        Trace::trace(unsafe {self._ptr.as_ref() }, tracer)
+        /* 
         unsafe {
             tracer(self._ptr.as_ref());
-        }
+        }*/
     }
 }
 
 impl<T: Trace> Trace for CcBox<T> {
     fn trace(&self, tracer: &mut Tracer) {
+        dbg!("Call trace from CcBox");
         Trace::trace(&self.value, tracer)
     }
 }
@@ -163,6 +167,7 @@ impl<T: Trace> Clone for Cc<T> {
 
 impl<T: Trace> Drop for Cc<T> {
     fn drop(&mut self) {
+        dbg!("Cc Drop here.");
         self.decrement()
     }
 }

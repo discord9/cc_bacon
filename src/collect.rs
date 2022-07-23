@@ -9,6 +9,7 @@ use crate::{CcBoxPtr, Color};
 pub type CcPtr = NonNull<dyn CcBoxPtr>;
 
 /// one CycleCollector for one virtual Machine
+#[derive(Debug)]
 pub struct CycleCollector {
     roots: RefCell<Vec<CcPtr>>,
 }

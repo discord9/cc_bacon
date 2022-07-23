@@ -1,3 +1,5 @@
+use core::panic;
+
 use crate::{CcBoxMetaData, CcPtr, Color, CycleCollector, Trace};
 
 pub trait CcBoxPtr: Trace {
@@ -49,18 +51,22 @@ pub trait CcBoxPtr: Trace {
     /// crosponding to `Decrement(S)`in paper
     #[inline]
     fn decrement(&self) {
-        self.dec_strong();
-        if self.strong() == 0 {
-            self.release()
-        } else {
-            self.possible_root()
+        dbg!(self.strong());
+        dbg!(self.get_ptr());
+        if self.strong() > 0 {
+            self.dec_strong();
+            if self.strong() == 0 {
+                self.release()
+            } else {
+                self.possible_root()
+            }
         }
     }
 
     /// .
     fn release(&self) {
         debug_assert_eq!(self.strong(), 0);
-        self.trace(&mut |ch| ch.dec_strong());
+        self.trace(&mut |ch| ch.decrement());
         self.metadata().color.set(Color::Black);
         if !self.buffered() {
             self.free();

@@ -1,5 +1,3 @@
-
-
 use crate::{CcBoxMetaData, CcPtr, Color, CycleCollector, Trace};
 
 pub trait CcBoxPtr: Trace {
@@ -51,7 +49,7 @@ pub trait CcBoxPtr: Trace {
     /// crosponding to `Decrement(S)`in paper
     #[inline]
     fn decrement(&self) {
-        dbg!("Before dec: {}", self.strong());
+        dbg!("Before dec: ", self.strong());
         dbg!(self.get_ptr());
         if self.strong() > 0 {
             self.dec_strong();
@@ -62,19 +60,15 @@ pub trait CcBoxPtr: Trace {
                 self.possible_root()
             }
         }
-        dbg!("After dec: {}", self.strong());
-        if let Some(root) = self.metadata().root.upgrade() {
-            dbg!("Root: {}", root);
-        }
+        dbg!("After dec: ", self.strong());
+        dbg!("Root: ", &self.metadata().root);
     }
 
     /// .
     fn release(&self) {
         debug_assert_eq!(self.strong(), 0);
         // self.trace(&mut |ch| ch.decrement());
-        let obj = unsafe {
-            self.get_ptr().as_ref()
-        };
+        let obj = unsafe { self.get_ptr().as_ref() };
         obj.trace(&mut |ch| ch.decrement());
         self.metadata().color.set(Color::Black);
         if !self.buffered() {
@@ -82,6 +76,7 @@ pub trait CcBoxPtr: Trace {
         }
     }
 
+    /// Deallocate the box if possible. `s` should already have been dropped.
     fn free(&self);
 
     fn possible_root(&self) {
@@ -89,12 +84,15 @@ pub trait CcBoxPtr: Trace {
             self.metadata().color.set(Color::Purple);
             if !self.buffered() {
                 self.metadata().buffered.set(true);
-                if let Some(root) = self.metadata().root.upgrade() {
-                    root.add_root(self.get_ptr());
-                } else {
-                    // if roots already didn't exist, free？
+
+                self.metadata().root.add_root(self.get_ptr());
+
+                // not sure about it, if taken a PyObject out from vm, then Cycle collect processor probably should not stop
+                /*  else {
+                    // if roots already dropped, then free object belonging to this
                     self.free();
                 }
+                */
             }
         }
     }

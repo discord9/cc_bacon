@@ -39,7 +39,7 @@ impl CycleCollector {
                     s.mark_gray();
                     true
                 } else {
-                    s.data().buffered.set(false);
+                    s.metadata().buffered.set(false);
                     if s.color() == Color::Black && s.strong() == 0 {
                         s.free();
                     }
@@ -66,7 +66,7 @@ impl CycleCollector {
             .map(|s| {
                 // TODO: check if this is safe!
                 let s = unsafe { s.as_ref() };
-                s.data().buffered.set(false);
+                s.metadata().buffered.set(false);
                 s.collect_white();
             })
             .count();

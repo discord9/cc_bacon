@@ -86,7 +86,7 @@ impl<T: Trace> Trace for CcBox<T> {
 }
 
 impl<T: 'static + Trace> CcBoxPtr for CcBox<T> {
-    fn data(&self) -> &CcBoxMetaData {
+    fn metadata(&self) -> &CcBoxMetaData {
         &self.metadata
     }
 
@@ -103,9 +103,9 @@ impl<T: 'static + Trace> CcBoxPtr for CcBox<T> {
 #[doc(hidden)]
 impl<T: Trace> CcBoxPtr for Cc<T> {
     #[inline(always)]
-    fn data(&self) -> &CcBoxMetaData {
+    fn metadata(&self) -> &CcBoxMetaData {
         unsafe {
-            self._ptr.as_ref().data()
+            self._ptr.as_ref().metadata()
         }
     }
 

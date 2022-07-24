@@ -88,7 +88,8 @@ struct CcBox<T: Trace> {
 
 impl<T: Trace> Trace for Cc<T> {
     fn trace(&self, tracer: &mut Tracer) {
-        dbg!("Call trace from Cc");
+        #[cfg(test)]
+        println!("Call trace from Cc: {:?}", self.get_ptr());
         /*Trace::trace(unsafe {self._ptr.as_ref() }, tracer)
          */
         unsafe {
@@ -97,9 +98,10 @@ impl<T: Trace> Trace for Cc<T> {
     }
 }
 
-impl<T: Trace> Trace for CcBox<T> {
+impl<T:'static +  Trace> Trace for CcBox<T> {
     fn trace(&self, tracer: &mut Tracer) {
-        dbg!("Call trace from CcBox");
+        #[cfg(test)]
+        println!("Call trace from CcBox: {:?}", self.get_ptr());
         Trace::trace(&self.value, tracer)
     }
 }

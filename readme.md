@@ -1,1 +1,2 @@
-impl bacon's cycle collector: <http://link.springer.com/10.1007/3-540-45337-7_12>, currently only stop the world
+impl bacon's cycle collector: <http://link.springer.com/10.1007/3-540-45337-7_12>, currently only stop the world.
+Basically a refactor of <https://github.com/fitzgen/bacon-rajan-cc>, just with a CycleCollector struct so multiple CycleCollector can exist in a thread.

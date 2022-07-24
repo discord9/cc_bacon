@@ -1,5 +1,6 @@
 use crate::{CcBoxMetaData, CcPtr, Color, CycleCollector, Trace};
 
+
 pub trait CcBoxPtr: Trace {
     /// Get this `CcBoxPtr`'s [`CcBoxMetaData`].
     fn metadata(&self) -> &CcBoxMetaData;
@@ -25,13 +26,6 @@ pub trait CcBoxPtr: Trace {
         self.metadata().strong.get()
     }
 
-    /// cresponding to `Increment(S)`in paper, change color to Black
-    #[inline]
-    fn increment(&self) {
-        self.inc_strong();
-        self.metadata().color.set(Color::Black);
-    }
-
     /// Only Increment this node's strong reference count.
     #[inline]
     fn inc_strong(&self) {
@@ -42,107 +36,6 @@ pub trait CcBoxPtr: Trace {
     #[inline]
     fn dec_strong(&self) {
         self.metadata().strong.set(self.strong() - 1);
-    }
-
-    /// Decrement this node's strong reference count.
-    ///
-    /// crosponding to `Decrement(S)`in paper
-    #[inline]
-    fn decrement(&self) {
-        dbg!("Before dec: ", self.strong());
-        dbg!(self.get_ptr());
-        if self.strong() > 0 {
-            self.dec_strong();
-            if self.strong() == 0 {
-                self.release()
-            } else {
-                dbg!("call possible root");
-                self.possible_root()
-            }
-        }
-        dbg!("After dec: ", self.strong());
-        dbg!("Root: ", &self.metadata().root);
-    }
-
-    /// .
-    fn release(&self) {
-        debug_assert_eq!(self.strong(), 0);
-        // self.trace(&mut |ch| ch.decrement());
-        let obj = unsafe { self.get_ptr().as_ref() };
-        obj.trace(&mut |ch| ch.decrement());
-        self.metadata().color.set(Color::Black);
-        if !self.buffered() {
-            unsafe {
-                self.free();
-            }
-            
-        }
-    }
-
-    /// Deallocate the box if possible. `s` should already have been dropped.
-    /// # Safety
-    /// can only be called after dropped
-    unsafe fn free(&self);
-
-    fn possible_root(&self) {
-        if self.color() != Color::Purple {
-            self.metadata().color.set(Color::Purple);
-            if !self.buffered() {
-                self.metadata().buffered.set(true);
-
-                self.metadata().root.add_root(self.get_ptr());
-
-                // not sure about it, if taken a PyObject out from vm, then Cycle collect processor probably should not stop
-                /*  else {
-                    // if roots already dropped, then free object belonging to this
-                    self.free();
-                }
-                */
-            }
-        }
-    }
-
-    fn mark_gray(&self) {
-        if self.color() != Color::Gray {
-            self.metadata().color.set(Color::Gray);
-            self.trace(&mut |ch| {
-                ch.dec_strong();
-                ch.mark_gray();
-            });
-        }
-    }
-
-    fn scan(&self) {
-        if self.color() == Color::Gray {
-            if self.strong() > 0 {
-                todo!()
-            } else {
-                self.metadata().color.set(Color::White);
-                self.trace(&mut |ch| {
-                    ch.scan();
-                })
-            }
-        }
-    }
-
-    fn scan_black(&self) {
-        self.metadata().color.set(Color::Black);
-        self.trace(&mut |ch| {
-            ch.inc_strong();
-            if ch.color() != Color::Black {
-                ch.scan_black();
-            }
-        })
-    }
-
-    fn collect_white(&self) {
-        if self.color() == Color::White && !self.buffered() {
-            self.metadata().color.set(Color::Black);
-            self.trace(&mut |ch| ch.collect_white());
-            unsafe {
-                self.free();
-            }
-        }
     }
 
     /// Get this node's weak reference count, including the "strong weak"

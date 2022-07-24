@@ -15,7 +15,7 @@ use std::{
 pub use box_ptr::{collect_cycles, CcBoxPtr};
 use collect::RootsRef;
 pub use collect::{CcPtr, CycleCollector};
-use dealloc::free;
+
 pub use trace::{Trace, Tracer};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -49,6 +49,17 @@ pub struct CcBoxMetaData {
     buffered: Cell<bool>,
     color: Cell<Color>,
     root: Arc<CycleCollector>,
+}
+
+impl Debug for CcBoxMetaData{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Metadata")
+        .field("strong", &self.strong.get())
+        .field("weak", &self.weak.get())
+        .field("buffered", &self.buffered.get())
+        .field("color", &self.color.get())
+        .finish()
+    }
 }
 
 impl CcBoxMetaData {
@@ -101,10 +112,6 @@ impl<T: 'static + Trace> CcBoxPtr for CcBox<T> {
         // CcBox's mutability is interior, so?
         NonNull::from(self)
     }
-
-    unsafe fn free(&self) {
-        free(self.get_ptr());
-    }
 }
 
 #[doc(hidden)]
@@ -116,10 +123,6 @@ impl<T: Trace> CcBoxPtr for Cc<T> {
 
     fn get_ptr(&self) -> CcPtr {
         self._ptr
-    }
-
-    unsafe fn free(&self) {
-        free(self.get_ptr());
     }
 }
 
@@ -167,8 +170,9 @@ impl<T: Trace> Clone for Cc<T> {
 
 impl<T: Trace> Drop for Cc<T> {
     fn drop(&mut self) {
+        #[cfg(test)]
         dbg!("Cc Drop here.");
-        self.decrement();
+        CycleCollector::decrement(self);
         self.metadata().root.collect_cycles();
     }
 }

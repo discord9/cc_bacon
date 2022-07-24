@@ -1,17 +1,29 @@
 //! impl bacon's cycle collector: <http://link.springer.com/10.1007/3-540-45337-7_12>
+use std::fmt::Debug;
 use std::sync::Arc;
 
 use core::cell::RefCell;
 use core::ptr::NonNull;
 
-use crate::{CcBoxPtr, Color};
+use crate::{dealloc::free, CcBoxPtr, Color};
 // TODO: understand NonNull can be safe?
 pub type CcPtr = NonNull<dyn CcBoxPtr>;
 
 /// one CycleCollector for one virtual Machine
-#[derive(Debug)]
+
 pub struct CycleCollector {
     roots: RefCell<Vec<CcPtr>>,
+}
+
+impl Debug for CycleCollector {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_list()
+            .entries(self.roots.borrow().iter().map(|raw| {
+                let ptr = unsafe { raw.as_ref() };
+                (raw, ptr.metadata())
+            }))
+            .finish()
+    }
 }
 
 pub type RootsRef = Arc<CycleCollector>;
@@ -29,14 +41,81 @@ impl CycleCollector {
         }
     }
 
+    /// cresponding to `Increment(S)`in paper, change color to Black
+    #[inline]
+    pub fn increment(zelf: &dyn CcBoxPtr) {
+        zelf.inc_strong();
+        zelf.metadata().color.set(Color::Black);
+    }
+
+    /// Decrement this node's strong reference count.
+    ///
+    /// crosponding to `Decrement(S)`in paper
+    #[inline]
+    pub fn decrement(zelf: &dyn CcBoxPtr) {
+        #[cfg(test)]
+        dbg!("Before dec: ", zelf.strong());
+        #[cfg(test)]
+        dbg!(zelf.get_ptr());
+        if zelf.strong() > 0 {
+            zelf.dec_strong();
+            if zelf.strong() == 0 {
+                Self::release(zelf);
+            } else {
+                dbg!("call possible root");
+                Self::possible_root(zelf);
+            }
+        }
+        #[cfg(test)]
+        dbg!("After dec: ", zelf.strong());
+    }
+
+    /// .
+    fn release(zelf: &dyn CcBoxPtr) {
+        debug_assert_eq!(zelf.strong(), 0);
+        // self.trace(&mut |ch| ch.decrement());
+        let obj = unsafe { zelf.get_ptr().as_ref() };
+        obj.trace(&mut |ch| Self::decrement(ch));
+        zelf.metadata().color.set(Color::Black);
+        if !zelf.buffered() {
+            unsafe {
+                free(zelf.get_ptr());
+            }
+        }
+    }
+
+    fn possible_root(zelf: &dyn CcBoxPtr) {
+        if zelf.color() != Color::Purple {
+            zelf.metadata().color.set(Color::Purple);
+            if !zelf.buffered() {
+                zelf.metadata().buffered.set(true);
+
+                zelf.metadata().root.add_root(zelf.get_ptr());
+
+                // not sure about it, if taken a PyObject out from vm, then Cycle collect processor probably should not stop
+                /*  else {
+                    // if roots already dropped, then free object belonging to this
+                    self.free();
+                }
+                */
+            }
+        }
+    }
+
     pub fn add_root(&self, box_ptr: CcPtr) {
         let mut vec = self.roots.borrow_mut();
         vec.push(box_ptr);
     }
 
     pub fn collect_cycles(&self) {
+        #[cfg(test)]
+        println!("Call mark_roots() with roots: {:#?}", self);
         self.mark_roots();
+        #[cfg(test)]
+        println!("Call scan_roots() with roots: {:#?}", self);
         self.scan_roots();
+        #[cfg(test)]
+        println!("Call collect_roots() with roots: {:#?}", self);
         self.collect_roots();
     }
 
@@ -49,13 +128,13 @@ impl CycleCollector {
                 // TODO: check if this is safe!
                 let s = unsafe { s.as_ref() };
                 if s.color() == Color::Purple {
-                    s.mark_gray();
+                    Self::mark_gray(s);
                     true
                 } else {
                     s.metadata().buffered.set(false);
                     if s.color() == Color::Black && s.strong() == 0 {
                         unsafe {
-                            s.free();
+                            free(s.get_ptr());
                         }
                     }
                     false
@@ -69,7 +148,7 @@ impl CycleCollector {
         for s in self.roots.borrow_mut().iter() {
             // TODO: check if this is safe!
             let s = unsafe { s.as_ref() };
-            s.scan();
+            Self::scan(s)
         }
     }
 
@@ -81,8 +160,51 @@ impl CycleCollector {
                 // TODO: check if this is safe!
                 let s = unsafe { s.as_ref() };
                 s.metadata().buffered.set(false);
-                s.collect_white();
+                Self::collect_white(s);
             })
             .count();
+    }
+
+    fn mark_gray(zelf: &dyn CcBoxPtr) {
+        if zelf.color() != Color::Gray {
+            zelf.metadata().color.set(Color::Gray);
+            zelf.trace(&mut |ch| {
+                ch.dec_strong();
+                Self::mark_gray(ch);
+            });
+        }
+    }
+
+    fn scan(zelf: &dyn CcBoxPtr) {
+        if zelf.color() == Color::Gray {
+            if zelf.strong() > 0 {
+                Self::scan_black(zelf);
+            } else {
+                zelf.metadata().color.set(Color::White);
+                zelf.trace(&mut |ch| {
+                    Self::scan(ch);
+                })
+            }
+        }
+    }
+
+    fn scan_black(zelf: &dyn CcBoxPtr) {
+        zelf.metadata().color.set(Color::Black);
+        zelf.trace(&mut |ch| {
+            ch.inc_strong();
+            if ch.color() != Color::Black {
+                Self::scan_black(ch);
+            }
+        })
+    }
+
+    fn collect_white(zelf: &dyn CcBoxPtr) {
+        if zelf.color() == Color::White && !zelf.buffered() {
+            zelf.metadata().color.set(Color::Black);
+            zelf.trace(&mut |ch| Self::collect_white(ch));
+            unsafe {
+                free(zelf.get_ptr());
+            }
+        }
     }
 }

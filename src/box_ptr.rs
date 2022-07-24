@@ -1,6 +1,5 @@
 use crate::{CcBoxMetaData, CcPtr, Color, CycleCollector, Trace};
 
-
 pub trait CcBoxPtr: Trace {
     /// Get this `CcBoxPtr`'s [`CcBoxMetaData`].
     fn metadata(&self) -> &CcBoxMetaData;

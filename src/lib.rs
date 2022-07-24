@@ -80,6 +80,7 @@ impl CcBoxMetaData {
     }
 }
 
+
 struct CcBox<T: Trace> {
     value: T,
     metadata: CcBoxMetaData,
@@ -134,6 +135,7 @@ pub struct Cc<T: 'static + Trace> {
     // accesses of the contained type via Deref
     _ptr: NonNull<CcBox<T>>,
 }
+
 
 impl<T: Trace> Cc<T> {
     pub fn new(value: T, roots: &RootsRef) -> Cc<T> {

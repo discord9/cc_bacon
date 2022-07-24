@@ -62,7 +62,6 @@ impl CycleCollector {
             if zelf.strong() == 0 {
                 Self::release(zelf);
             } else {
-                dbg!("call possible root");
                 Self::possible_root(zelf);
             }
         }
@@ -89,15 +88,7 @@ impl CycleCollector {
             zelf.metadata().color.set(Color::Purple);
             if !zelf.buffered() {
                 zelf.metadata().buffered.set(true);
-
                 zelf.metadata().root.add_root(zelf.get_ptr());
-
-                // not sure about it, if taken a PyObject out from vm, then Cycle collect processor probably should not stop
-                /*  else {
-                    // if roots already dropped, then free object belonging to this
-                    self.free();
-                }
-                */
             }
         }
     }

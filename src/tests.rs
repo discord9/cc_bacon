@@ -20,6 +20,15 @@ fn test_new_cc(){
 }
 
 #[test]
+fn test_dead() {
+    let root = Arc::new(CycleCollector::new());
+    let x = Cc::new(5, &root);
+    let y = x.downgrade();
+    drop(x);
+    assert!(y.upgrade().is_none());
+}
+
+#[test]
 fn test_self_ref_cc(){
     let root = Arc::new(CycleCollector::new());
     // let _five = Cc::new(5i32, &root);

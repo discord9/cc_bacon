@@ -5,14 +5,16 @@ use std::{
 
 use crate::{CcBoxPtr, CcPtr};
 
-unsafe fn deallocate(ptr: NonNull<dyn CcBoxPtr>) {
+pub unsafe fn deallocate(ptr: NonNull<dyn CcBoxPtr>) {
+    #[cfg(test)]
+    println!("Actually deallocate in here for {:?}", ptr);
     dealloc(ptr.cast().as_ptr(), Layout::for_value(ptr.as_ref()));
 }
 
 /// Deallocate the box if possible. `s` should already have been dropped.
 pub unsafe fn free(s: CcPtr) {
     #[cfg(test)]
-    dbg!("Called free in here for", s);
+    println!("Called free in here for {:?}", s);
     debug_assert_eq!(s.as_ref().strong(), 0);
     debug_assert!(!s.as_ref().buffered());
 

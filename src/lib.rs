@@ -4,18 +4,13 @@ mod dealloc;
 #[cfg(test)]
 mod tests;
 mod trace;
-use std::{
-    cell::Cell,
-    fmt::Debug,
-    ops::Deref,
-    ptr::NonNull,
-    sync::{Arc},
-};
+use std::{cell::Cell, fmt::Debug, ops::Deref, ptr::NonNull, sync::Arc};
 
 pub use box_ptr::{collect_cycles, CcBoxPtr};
 use collect::RootsRef;
 pub use collect::{CcPtr, CycleCollector};
 
+use dealloc::deallocate;
 pub use trace::{Trace, Tracer};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -51,14 +46,14 @@ pub struct CcBoxMetaData {
     root: Arc<CycleCollector>,
 }
 
-impl Debug for CcBoxMetaData{
+impl Debug for CcBoxMetaData {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Metadata")
-        .field("strong", &self.strong.get())
-        .field("weak", &self.weak.get())
-        .field("buffered", &self.buffered.get())
-        .field("color", &self.color.get())
-        .finish()
+            .field("strong", &self.strong.get())
+            .field("weak", &self.weak.get())
+            .field("buffered", &self.buffered.get())
+            .field("color", &self.color.get())
+            .finish()
     }
 }
 
@@ -80,7 +75,7 @@ impl CcBoxMetaData {
     }
 }
 
-
+/// TODO: impl !Send !Sync for CcBox&Cc
 struct CcBox<T: Trace> {
     value: T,
     metadata: CcBoxMetaData,
@@ -98,7 +93,7 @@ impl<T: Trace> Trace for Cc<T> {
     }
 }
 
-impl<T:'static +  Trace> Trace for CcBox<T> {
+impl<T: 'static + Trace> Trace for CcBox<T> {
     fn trace(&self, tracer: &mut Tracer) {
         #[cfg(test)]
         println!("Call trace from CcBox: {:?}", self.get_ptr());
@@ -138,7 +133,6 @@ pub struct Cc<T: 'static + Trace> {
     _ptr: NonNull<CcBox<T>>,
 }
 
-
 impl<T: Trace> Cc<T> {
     pub fn new(value: T, roots: &RootsRef) -> Cc<T> {
         unsafe {
@@ -149,6 +143,11 @@ impl<T: Trace> Cc<T> {
                 }))),
             }
         }
+    }
+
+    pub fn downgrade(&self) -> Weak<T> {
+        self.inc_weak();
+        Weak { _ptr: self._ptr }
     }
 }
 
@@ -178,5 +177,60 @@ impl<T: Trace> Drop for Cc<T> {
         dbg!("Cc Drop here.");
         CycleCollector::decrement(self);
         self.metadata().root.collect_cycles();
+    }
+}
+
+/// A weak version of `Cc<T>`.
+///
+/// Weak references do not count when determining if the inner value should be
+/// dropped.
+///
+/// See the [module level documentation](./) for more.
+pub struct Weak<T: 'static + Trace> {
+    // FIXME #12808: strange names to try to avoid interfering with
+    // field accesses of the contained type via Deref
+    _ptr: NonNull<CcBox<T>>,
+}
+
+impl<T: 'static + Trace> Trace for Weak<T> {
+    fn trace(&self, _tracer: &mut Tracer) {
+        // Weak references should not be traced.
+    }
+}
+
+
+impl<T: 'static + Trace> CcBoxPtr for Weak<T> {
+    fn metadata(&self) -> &CcBoxMetaData {
+        unsafe { self._ptr.as_ref().metadata() }
+    }
+
+    fn get_ptr(&self) -> CcPtr {
+        // when weak exist, there are no risk of dangling pointer because actual deallocate havn't happen
+        self._ptr
+    }
+}
+
+impl<T: 'static + Trace> Weak<T> {
+    pub fn upgrade(&self) -> Option<Cc<T>> {
+        if self.strong() == 0 {
+            None
+        } else {
+            self.inc_strong();
+            Some(Cc { _ptr: self._ptr })
+        }
+    }
+}
+
+impl<T: 'static + Trace> Drop for Weak<T> {
+    fn drop(&mut self) {
+        if self.weak() > 0 {
+            self.dec_weak();
+            // The weak count starts at 1, and will only go to zero if all
+            // the strong pointers have disappeared.
+            if self.weak() == 0 {
+                debug_assert_eq!(self.strong(), 0);
+                unsafe { deallocate(self.get_ptr()) }
+            }
+        }
     }
 }

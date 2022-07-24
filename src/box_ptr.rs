@@ -1,5 +1,9 @@
-use crate::{CcBoxMetaData, CcPtr, Color, CycleCollector, Trace};
 
+
+use std::ptr::NonNull;
+
+use crate::{CcBoxMetaData, Color, CycleCollector, Trace};
+pub type CcPtr = NonNull<dyn CcBoxPtr>;
 pub trait CcBoxPtr: Trace {
     /// Get this `CcBoxPtr`'s [`CcBoxMetaData`].
     fn metadata(&self) -> &CcBoxMetaData;

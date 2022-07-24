@@ -3,11 +3,11 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use core::cell::RefCell;
-use core::ptr::NonNull;
 
-use crate::{dealloc::free, CcBoxPtr, Color};
+
+use crate::{CcBoxPtr, Color, dealloc, CcPtr};
 // TODO: understand NonNull can be safe?
-pub type CcPtr = NonNull<dyn CcBoxPtr>;
+
 
 /// one CycleCollector for one virtual Machine
 
@@ -39,6 +39,12 @@ impl CycleCollector {
         Self {
             roots: Vec::new().into(),
         }
+    }
+
+    /// # Safety
+    /// should have already dropped
+    pub unsafe fn free(zelf: &dyn CcBoxPtr) {
+        dealloc::free(zelf.get_ptr())
     }
 
     /// cresponding to `Increment(S)`in paper, change color to Black
@@ -77,9 +83,7 @@ impl CycleCollector {
         obj.trace(&mut |ch| Self::decrement(ch));
         zelf.metadata().color.set(Color::Black);
         if !zelf.buffered() {
-            unsafe {
-                free(zelf.get_ptr());
-            }
+            unsafe { CycleCollector::free(zelf) }
         }
     }
 
@@ -124,9 +128,7 @@ impl CycleCollector {
                 } else {
                     s.metadata().buffered.set(false);
                     if s.color() == Color::Black && s.strong() == 0 {
-                        unsafe {
-                            free(s.get_ptr());
-                        }
+                        unsafe { CycleCollector::free(s) }
                     }
                     false
                 }
@@ -193,9 +195,7 @@ impl CycleCollector {
         if zelf.color() == Color::White && !zelf.buffered() {
             zelf.metadata().color.set(Color::Black);
             zelf.trace(&mut |ch| Self::collect_white(ch));
-            unsafe {
-                free(zelf.get_ptr());
-            }
+            unsafe { CycleCollector::free(zelf) }
         }
     }
 }

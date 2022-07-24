@@ -1,3 +1,5 @@
+mod acc;
+mod concurrent_collect;
 mod box_ptr;
 mod collect;
 mod dealloc;
@@ -6,9 +8,10 @@ mod tests;
 mod trace;
 use std::{cell::Cell, fmt::Debug, ops::Deref, ptr::NonNull, sync::Arc};
 
-pub use box_ptr::{collect_cycles, CcBoxPtr};
+pub use box_ptr::{collect_cycles, CcBoxPtr, CcPtr};
+pub use collect::CycleCollector;
 use collect::RootsRef;
-pub use collect::{CcPtr, CycleCollector};
+use acc::{ AccBoxPtr, AccPtr};
 
 use dealloc::deallocate;
 pub use trace::{Trace, Tracer};
@@ -197,7 +200,6 @@ impl<T: 'static + Trace> Trace for Weak<T> {
         // Weak references should not be traced.
     }
 }
-
 
 impl<T: 'static + Trace> CcBoxPtr for Weak<T> {
     fn metadata(&self) -> &CcBoxMetaData {

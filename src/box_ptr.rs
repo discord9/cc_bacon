@@ -2,7 +2,7 @@
 
 use std::ptr::NonNull;
 
-use crate::{CcBoxMetaData, Color, CycleCollector, Trace};
+use crate::{CcBoxMetaData, Color, SyncCycleCollector, Trace};
 pub type CcPtr = NonNull<dyn CcBoxPtr>;
 pub trait CcBoxPtr: Trace {
     /// Get this `CcBoxPtr`'s [`CcBoxMetaData`].
@@ -62,6 +62,6 @@ pub trait CcBoxPtr: Trace {
 }
 
 /// .
-pub fn collect_cycles(roots: &CycleCollector) {
+pub fn collect_cycles(roots: &SyncCycleCollector) {
     roots.collect_cycles();
 }

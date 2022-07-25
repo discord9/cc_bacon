@@ -8,6 +8,7 @@ pub struct ParCycleCollector {
 impl ParCycleCollector {
     pub fn increment(zelf: &dyn AccBoxPtr) {
         zelf.inc_strong();
+        ParCycleCollector::scan_black(zelf);
     }
 
     pub fn decrement(zelf: &dyn AccBoxPtr) {
@@ -22,15 +23,13 @@ impl ParCycleCollector {
     }
 
     fn possible_root(zelf: &dyn AccBoxPtr) {
-        
+
     }
 
     fn scan_black(zelf: &dyn AccBoxPtr) {
-        if zelf.color() != Color::Black {
-            {
-                *zelf.metadata().color.write().unwrap() = Color::Black;
-            }
-
+        let mut meta = zelf.metadata().write().unwrap();
+        if meta.color != Color::Black {
+            meta.color = Color::Black;
             zelf.trace(&mut |ch| ParCycleCollector::scan_black(ch))
         }
     }

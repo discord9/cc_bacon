@@ -9,7 +9,7 @@ mod trace;
 use std::{cell::Cell, fmt::Debug, ops::Deref, ptr::NonNull, sync::Arc};
 
 pub use box_ptr::{collect_cycles, CcBoxPtr, CcPtr};
-pub use collect::CycleCollector;
+pub use collect::SyncCycleCollector;
 use collect::RootsRef;
 use acc::{ AccBoxPtr, AccPtr};
 
@@ -46,7 +46,7 @@ pub struct CcBoxMetaData {
     weak: Cell<usize>,
     buffered: Cell<bool>,
     color: Cell<Color>,
-    root: Arc<CycleCollector>,
+    root: Arc<SyncCycleCollector>,
 }
 
 impl Debug for CcBoxMetaData {
@@ -67,7 +67,7 @@ impl CcBoxMetaData {
     the allocation while the strong destructor is running, even
     if the weak pointer is stored inside the strong one.
     */
-    pub fn with(root: Arc<CycleCollector>) -> Self {
+    pub fn with(root: Arc<SyncCycleCollector>) -> Self {
         Self {
             strong: 1.into(),
             weak: 1.into(),
@@ -169,7 +169,8 @@ impl<T: Trace> Deref for Cc<T> {
 
 impl<T: Trace> Clone for Cc<T> {
     fn clone(&self) -> Self {
-        self.inc_strong();
+        SyncCycleCollector::increment(self);
+        // self.inc_strong();
         Cc { _ptr: self._ptr }
     }
 }
@@ -178,7 +179,7 @@ impl<T: Trace> Drop for Cc<T> {
     fn drop(&mut self) {
         #[cfg(test)]
         dbg!("Cc Drop here.");
-        CycleCollector::decrement(self);
+        SyncCycleCollector::decrement(self);
         self.metadata().root.collect_cycles();
     }
 }

@@ -15,13 +15,13 @@ impl Trace for TestObj{
 }
 #[test]
 fn test_new_cc(){
-    let root = Arc::new(CycleCollector::new());
+    let root = Arc::new(SyncCycleCollector::new());
     let _five = Cc::new(5i32, &root);
 }
 
 #[test]
 fn test_dead() {
-    let root = Arc::new(CycleCollector::new());
+    let root = Arc::new(SyncCycleCollector::new());
     let x = Cc::new(5, &root);
     let y = x.downgrade();
     drop(x);
@@ -30,7 +30,7 @@ fn test_dead() {
 
 #[test]
 fn test_self_ref_cc(){
-    let root = Arc::new(CycleCollector::new());
+    let root = Arc::new(SyncCycleCollector::new());
     // let _five = Cc::new(5i32, &root);
     let cycle = Cc::new(TestObj{to:None.into()}, &root);
     *cycle.to.borrow_mut() = Some(cycle.clone());
@@ -41,7 +41,7 @@ fn test_self_ref_cc(){
 
 #[test]
 fn test_simple_ref_cycle(){
-    let root = Arc::new(CycleCollector::new());
+    let root = Arc::new(SyncCycleCollector::new());
     // let _five = Cc::new(5i32, &root);
     let obj1 = Cc::new(TestObj{to:None.into()}, &root);
     let obj2 = Cc::new(TestObj{to:None.into()}, &root);

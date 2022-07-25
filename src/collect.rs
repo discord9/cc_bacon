@@ -8,14 +8,16 @@ use core::cell::RefCell;
 use crate::{CcBoxPtr, Color, dealloc, CcPtr};
 // TODO: understand NonNull can be safe?
 
+pub trait CycleCollector {
+    fn increment(zelf: &dyn CcBoxPtr);
+}
 
 /// one CycleCollector for one virtual Machine
-
-pub struct CycleCollector {
+pub struct SyncCycleCollector {
     roots: RefCell<Vec<CcPtr>>,
 }
 
-impl Debug for CycleCollector {
+impl Debug for SyncCycleCollector {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_list()
             .entries(self.roots.borrow().iter().map(|raw| {
@@ -26,15 +28,15 @@ impl Debug for CycleCollector {
     }
 }
 
-pub type RootsRef = Arc<CycleCollector>;
+pub type RootsRef = Arc<SyncCycleCollector>;
 
-impl Default for CycleCollector {
+impl Default for SyncCycleCollector {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl CycleCollector {
+impl SyncCycleCollector {
     pub fn new() -> Self {
         Self {
             roots: Vec::new().into(),
@@ -83,7 +85,7 @@ impl CycleCollector {
         obj.trace(&mut |ch| Self::decrement(ch));
         zelf.metadata().color.set(Color::Black);
         if !zelf.buffered() {
-            unsafe { CycleCollector::free(zelf) }
+            unsafe { SyncCycleCollector::free(zelf) }
         }
     }
 
@@ -128,7 +130,7 @@ impl CycleCollector {
                 } else {
                     s.metadata().buffered.set(false);
                     if s.color() == Color::Black && s.strong() == 0 {
-                        unsafe { CycleCollector::free(s) }
+                        unsafe { SyncCycleCollector::free(s) }
                     }
                     false
                 }
@@ -195,7 +197,7 @@ impl CycleCollector {
         if zelf.color() == Color::White && !zelf.buffered() {
             zelf.metadata().color.set(Color::Black);
             zelf.trace(&mut |ch| Self::collect_white(ch));
-            unsafe { CycleCollector::free(zelf) }
+            unsafe { SyncCycleCollector::free(zelf) }
         }
     }
 }

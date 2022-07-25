@@ -10,6 +10,7 @@ use crate::{CcBoxPtr, Color, dealloc, CcPtr};
 
 pub trait CycleCollector {
     fn increment(zelf: &dyn CcBoxPtr);
+    fn decrement(zelf: &dyn CcBoxPtr);
 }
 
 /// one CycleCollector for one virtual Machine
@@ -36,22 +37,10 @@ impl Default for SyncCycleCollector {
     }
 }
 
-impl SyncCycleCollector {
-    pub fn new() -> Self {
-        Self {
-            roots: Vec::new().into(),
-        }
-    }
-
-    /// # Safety
-    /// should have already dropped
-    pub unsafe fn free(zelf: &dyn CcBoxPtr) {
-        dealloc::free(zelf.get_ptr())
-    }
-
+impl CycleCollector for SyncCycleCollector {
     /// cresponding to `Increment(S)`in paper, change color to Black
     #[inline]
-    pub fn increment(zelf: &dyn CcBoxPtr) {
+    fn increment(zelf: &dyn CcBoxPtr) {
         zelf.inc_strong();
         zelf.metadata().color.set(Color::Black);
     }
@@ -60,7 +49,7 @@ impl SyncCycleCollector {
     ///
     /// crosponding to `Decrement(S)`in paper
     #[inline]
-    pub fn decrement(zelf: &dyn CcBoxPtr) {
+    fn decrement(zelf: &dyn CcBoxPtr) {
         #[cfg(test)]
         dbg!("Before dec: ", zelf.strong());
         #[cfg(test)]
@@ -76,6 +65,24 @@ impl SyncCycleCollector {
         #[cfg(test)]
         dbg!("After dec: ", zelf.strong());
     }
+}
+
+impl SyncCycleCollector {
+    pub fn new() -> Self {
+        Self {
+            roots: Vec::new().into(),
+        }
+    }
+
+    /// # Safety
+    /// should have already dropped
+    pub unsafe fn free(zelf: &dyn CcBoxPtr) {
+        dealloc::free(zelf.get_ptr())
+    }
+
+    
+
+    
 
     /// .
     fn release(zelf: &dyn CcBoxPtr) {
@@ -85,7 +92,7 @@ impl SyncCycleCollector {
         obj.trace(&mut |ch| Self::decrement(ch));
         zelf.metadata().color.set(Color::Black);
         if !zelf.buffered() {
-            unsafe { SyncCycleCollector::free(zelf) }
+            unsafe { Self::free(zelf) }
         }
     }
 
@@ -130,7 +137,7 @@ impl SyncCycleCollector {
                 } else {
                     s.metadata().buffered.set(false);
                     if s.color() == Color::Black && s.strong() == 0 {
-                        unsafe { SyncCycleCollector::free(s) }
+                        unsafe { Self::free(s) }
                     }
                     false
                 }
@@ -197,7 +204,7 @@ impl SyncCycleCollector {
         if zelf.color() == Color::White && !zelf.buffered() {
             zelf.metadata().color.set(Color::Black);
             zelf.trace(&mut |ch| Self::collect_white(ch));
-            unsafe { SyncCycleCollector::free(zelf) }
+            unsafe { Self::free(zelf) }
         }
     }
 }

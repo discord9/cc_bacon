@@ -3,15 +3,17 @@ mod concurrent_collect;
 mod box_ptr;
 mod collect;
 mod dealloc;
+mod metadata;
 #[cfg(test)]
 mod tests;
 mod trace;
 use std::{cell::Cell, fmt::Debug, ops::Deref, ptr::NonNull, sync::Arc};
 
 pub use box_ptr::{collect_cycles, CcBoxPtr, CcPtr};
-pub use collect::SyncCycleCollector;
+pub use collect::{SyncCycleCollector, CycleCollector};
+use metadata::BoxMetaData;
 use collect::RootsRef;
-use acc::{ AccBoxPtr, AccPtr};
+use acc::{ AccBoxPtr};
 
 use dealloc::deallocate;
 pub use trace::{Trace, Tracer};
@@ -115,6 +117,8 @@ impl<T: 'static + Trace> CcBoxPtr for CcBox<T> {
     }
 }
 
+/// for Cc and CcBox have very different size(A NonNull vs A value of T and metadata), so use dyn 
+/// insted of enum dispatch could be beneficial?
 #[doc(hidden)]
 impl<T: Trace> CcBoxPtr for Cc<T> {
     #[inline(always)]

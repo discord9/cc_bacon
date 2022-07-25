@@ -1,8 +1,10 @@
 use std::cell::RefCell;
 
-use crate::{acc::AccPtr, AccBoxPtr, Color};
+use crate::{acc::AccPtr, AccBoxPtr, Color, CcPtr};
+
+#[derive(Debug)]
 pub struct ParCycleCollector {
-    cycle_buffer: RefCell<Vec<AccPtr>>,
+    cycle_buffer: RefCell<Vec<CcPtr>>,
 }
 
 impl ParCycleCollector {

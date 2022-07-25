@@ -2,7 +2,7 @@ use std::{cell::Cell, sync::Arc, fmt::Debug};
 
 use enum_dispatch::enum_dispatch;
 
-use crate::{Color, SyncCycleCollector};
+use crate::{Color, SyncCycleCollector, collect::SyncOrConcurrent};
 
 #[enum_dispatch]
 pub trait MetaData {
@@ -17,6 +17,7 @@ pub trait MetaData {
     fn set_buffered(&self, new: bool);
     fn set_color(&self, new: Color);
     fn is_atomic(&self) -> bool;
+    fn root(&self) -> SyncOrConcurrent;
 }
 
 impl Debug for dyn MetaData {
@@ -30,7 +31,8 @@ impl Debug for dyn MetaData {
             .finish()
     }
 }
-#[enum_dispatch(metadata)]
+
+#[enum_dispatch(MetaData)]
 pub enum BoxMetaData {
     CcBoxMetaData,
     AccBoxMetaData,
@@ -42,6 +44,17 @@ pub struct CcBoxMetaData {
     buffered: Cell<bool>,
     color: Cell<Color>,
     root: Arc<SyncCycleCollector>,
+}
+
+impl BoxMetaData {
+    pub fn with(root: SyncOrConcurrent) -> BoxMetaData {{
+        match root{
+            SyncOrConcurrent::sync_cc(cc)=>{
+                BoxMetaData::CcBoxMetaData(CcBoxMetaData::with(cc))
+            },
+            SyncOrConcurrent::concurrent_cc(cc) => todo!()
+        }
+    }}
 }
 
 impl CcBoxMetaData {
@@ -103,6 +116,10 @@ impl MetaData for CcBoxMetaData {
 
     fn is_atomic(&self) -> bool {
         false
+    }
+
+    fn root(&self) -> SyncOrConcurrent {
+        SyncOrConcurrent::sync_cc(self.root.clone())
     }
 }
 
@@ -174,5 +191,9 @@ impl MetaData for AccBoxMetaData {
 
     fn is_atomic(&self) -> bool {
         true
+    }
+
+    fn root(&self) -> SyncOrConcurrent {
+        todo!()
     }
 }

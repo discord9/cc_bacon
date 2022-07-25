@@ -10,8 +10,8 @@ mod trace;
 use std::{cell::Cell, fmt::Debug, ops::Deref, ptr::NonNull, sync::Arc};
 
 pub use box_ptr::{collect_cycles, CcBoxPtr, CcPtr};
-pub use collect::{SyncCycleCollector, CycleCollector};
-use metadata::BoxMetaData;
+pub use collect::{SyncCycleCollector};
+use metadata::{BoxMetaData, MetaData};
 use collect::RootsRef;
 use acc::{ AccBoxPtr};
 
@@ -83,7 +83,7 @@ impl CcBoxMetaData {
 /// TODO: impl !Send !Sync for CcBox&Cc
 struct CcBox<T: Trace> {
     value: T,
-    metadata: CcBoxMetaData,
+    metadata: BoxMetaData,
 }
 
 impl<T: Trace> Trace for Cc<T> {
@@ -107,7 +107,7 @@ impl<T: 'static + Trace> Trace for CcBox<T> {
 }
 
 impl<T: 'static + Trace> CcBoxPtr for CcBox<T> {
-    fn metadata(&self) -> &CcBoxMetaData {
+    fn metadata(&self) -> &BoxMetaData {
         &self.metadata
     }
 
@@ -122,7 +122,7 @@ impl<T: 'static + Trace> CcBoxPtr for CcBox<T> {
 #[doc(hidden)]
 impl<T: Trace> CcBoxPtr for Cc<T> {
     #[inline(always)]
-    fn metadata(&self) -> &CcBoxMetaData {
+    fn metadata(&self) -> &BoxMetaData {
         unsafe { self._ptr.as_ref().metadata() }
     }
 
@@ -144,16 +144,16 @@ impl<T: Trace> Cc<T> {
     pub fn new(value: T, roots: &RootsRef) -> Cc<T> {
         unsafe {
             Cc {
-                _ptr: NonNull::new_unchecked(Box::into_raw(Box::new(CcBox {
+                _ptr: NonNull::new(Box::into_raw(Box::new(CcBox {
                     value,
-                    metadata: CcBoxMetaData::with(roots.clone()),
-                }))),
+                    metadata: BoxMetaData::with(roots.clone().into()),
+                }))).unwrap(),
             }
         }
     }
 
     pub fn downgrade(&self) -> Weak<T> {
-        self.inc_weak();
+        self.metadata().inc_weak();
         Weak { _ptr: self._ptr }
     }
 }
@@ -184,7 +184,7 @@ impl<T: Trace> Drop for Cc<T> {
         #[cfg(test)]
         dbg!("Cc Drop here.");
         SyncCycleCollector::decrement(self);
-        self.metadata().root.collect_cycles();
+        self.metadata().root().try_into_sync_cc().unwrap().collect_cycles();
     }
 }
 
@@ -207,7 +207,7 @@ impl<T: 'static + Trace> Trace for Weak<T> {
 }
 
 impl<T: 'static + Trace> CcBoxPtr for Weak<T> {
-    fn metadata(&self) -> &CcBoxMetaData {
+    fn metadata(&self) -> &BoxMetaData {
         unsafe { self._ptr.as_ref().metadata() }
     }
 
@@ -222,7 +222,7 @@ impl<T: 'static + Trace> Weak<T> {
         if self.strong() == 0 {
             None
         } else {
-            self.inc_strong();
+            self.metadata().inc_strong();
             Some(Cc { _ptr: self._ptr })
         }
     }
@@ -231,7 +231,7 @@ impl<T: 'static + Trace> Weak<T> {
 impl<T: 'static + Trace> Drop for Weak<T> {
     fn drop(&mut self) {
         if self.weak() > 0 {
-            self.dec_weak();
+            self.metadata().dec_weak();
             // The weak count starts at 1, and will only go to zero if all
             // the strong pointers have disappeared.
             if self.weak() == 0 {

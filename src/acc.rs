@@ -1,6 +1,6 @@
 use crate::Color;
 use std::sync::RwLock;
-use std::{cell::Cell, ptr::NonNull};
+use std::ptr::NonNull;
 
 /// A `Tracer` is a callback function that is invoked for each `CcBoxPtr` owned
 /// by an instance of something.

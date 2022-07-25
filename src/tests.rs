@@ -16,7 +16,8 @@ impl Trace for TestObj{
 #[test]
 fn test_new_cc(){
     let root = Arc::new(SyncCycleCollector::new());
-    let _five = Cc::new(5i32, &root);
+    let five = Cc::new(5i32, &root);
+    drop(five);
 }
 
 #[test]

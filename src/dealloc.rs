@@ -3,7 +3,7 @@ use std::{
     ptr::NonNull,
 };
 
-use crate::{CcBoxPtr, CcPtr};
+use crate::{CcBoxPtr, CcPtr, metadata::MetaData};
 
 pub unsafe fn deallocate(ptr: NonNull<dyn CcBoxPtr>) {
     #[cfg(test)]
@@ -15,12 +15,12 @@ pub unsafe fn deallocate(ptr: NonNull<dyn CcBoxPtr>) {
 pub unsafe fn free(s: CcPtr) {
     #[cfg(test)]
     println!("Called free in here for {:?}", s);
-    debug_assert_eq!(s.as_ref().strong(), 0);
-    debug_assert!(!s.as_ref().buffered());
+    debug_assert_eq!(s.as_ref().metadata().strong(), 0);
+    debug_assert!(!s.as_ref().metadata().buffered());
 
     // Remove the implicit "strong weak" pointer now that we've destroyed
     // the contents.
-    s.as_ref().dec_weak();
+    s.as_ref().metadata().dec_weak();
 
     if s.as_ref().weak() == 0 {
         deallocate(s);

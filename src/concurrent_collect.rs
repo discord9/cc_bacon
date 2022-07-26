@@ -1,8 +1,9 @@
 use std::cell::RefCell;
 
-use crate::{acc::AccPtr, AccBoxPtr, Color, CcPtr};
+use crate::{AccBoxPtr, CcPtr, Color};
 
 #[derive(Debug)]
+#[allow(unused)]
 pub struct ParCycleCollector {
     cycle_buffer: RefCell<Vec<CcPtr>>,
 }
@@ -15,18 +16,16 @@ impl ParCycleCollector {
 
     pub fn decrement(zelf: &dyn AccBoxPtr) {
         zelf.dec_strong();
-        if zelf.strong() == 0{
+        if zelf.strong() == 0 {
             ParCycleCollector::release(zelf)
         }
     }
 
-    fn release(zelf: &dyn AccBoxPtr) {
+    fn release(_zelf: &dyn AccBoxPtr) {
         todo!()
     }
 
-    fn possible_root(zelf: &dyn AccBoxPtr) {
-
-    }
+    fn possible_root(_zelf: &dyn AccBoxPtr) {}
 
     fn scan_black(zelf: &dyn AccBoxPtr) {
         let mut meta = zelf.metadata().write().unwrap();

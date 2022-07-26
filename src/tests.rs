@@ -1,20 +1,20 @@
-use std::{sync::Arc, cell::RefCell};
+use std::{cell::RefCell, sync::Arc};
 
 use super::*;
 
-struct TestObj{
-    to: RefCell<Option<Cc<TestObj>>>
+struct TestObj {
+    to: RefCell<Option<Cc<TestObj>>>,
 }
 
-impl Trace for TestObj{
+impl Trace for TestObj {
     fn trace(&self, tracer: &mut Tracer) {
-        if let Some(to) = self.to.borrow().into(){
+        if let Some(to) = self.to.borrow().into() {
             to.trace(tracer)
         }
     }
 }
 #[test]
-fn test_new_cc(){
+fn test_new_cc() {
     let root = Arc::new(SyncCycleCollector::new());
     let five = Cc::new(5i32, &root);
     drop(five);
@@ -30,10 +30,10 @@ fn test_dead() {
 }
 
 #[test]
-fn test_self_ref_cc(){
+fn test_self_ref_cc() {
     let root = Arc::new(SyncCycleCollector::new());
     // let _five = Cc::new(5i32, &root);
-    let cycle = Cc::new(TestObj{to:None.into()}, &root);
+    let cycle = Cc::new(TestObj { to: None.into() }, &root);
     *cycle.to.borrow_mut() = Some(cycle.clone());
     //drop(cycle);
     //root.collect_cycles();
@@ -41,11 +41,11 @@ fn test_self_ref_cc(){
 }
 
 #[test]
-fn test_simple_ref_cycle(){
+fn test_simple_ref_cycle() {
     let root = Arc::new(SyncCycleCollector::new());
     // let _five = Cc::new(5i32, &root);
-    let obj1 = Cc::new(TestObj{to:None.into()}, &root);
-    let obj2 = Cc::new(TestObj{to:None.into()}, &root);
+    let obj1 = Cc::new(TestObj { to: None.into() }, &root);
+    let obj2 = Cc::new(TestObj { to: None.into() }, &root);
     *obj1.to.borrow_mut() = Some(obj2.clone());
     *obj2.to.borrow_mut() = Some(obj1.clone());
     dbg!("Cycle made");

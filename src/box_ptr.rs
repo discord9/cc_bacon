@@ -1,8 +1,6 @@
-
-
 use std::ptr::NonNull;
 
-use crate::{CcBoxMetaData, Color, SyncCycleCollector, Trace, BoxMetaData, metadata::MetaData};
+use crate::{metadata::MetaData, BoxMetaData, Color, SyncCycleCollector, Trace};
 pub type CcPtr = NonNull<dyn CcBoxPtr>;
 pub trait CcBoxPtr: Trace {
     /// Get this `CcBoxPtr`'s [`CcBoxMetaData`].
@@ -10,18 +8,19 @@ pub trait CcBoxPtr: Trace {
 
     fn get_ptr(&self) -> CcPtr;
 
+    #[inline]
     fn strong(&self) -> usize {
         self.metadata().strong()
     }
-
+    #[inline]
     fn weak(&self) -> usize {
         self.metadata().weak()
     }
-
+    #[inline]
     fn buffered(&self) -> bool {
         self.metadata().buffered()
     }
-
+    #[inline]
     fn color(&self) -> Color {
         self.metadata().color()
     }

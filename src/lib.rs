@@ -1,7 +1,7 @@
 mod acc;
-mod concurrent_collect;
 mod box_ptr;
 mod collect;
+mod concurrent_collect;
 mod dealloc;
 mod metadata;
 #[cfg(test)]
@@ -9,11 +9,11 @@ mod tests;
 mod trace;
 use std::{cell::Cell, fmt::Debug, ops::Deref, ptr::NonNull, sync::Arc};
 
+use acc::AccBoxPtr;
 pub use box_ptr::{collect_cycles, CcBoxPtr, CcPtr};
-pub use collect::{SyncCycleCollector};
-use metadata::{BoxMetaData, MetaData};
 use collect::RootsRef;
-use acc::{ AccBoxPtr};
+pub use collect::SyncCycleCollector;
+use metadata::{BoxMetaData, MetaData};
 
 use dealloc::deallocate;
 pub use trace::{Trace, Tracer};
@@ -117,7 +117,7 @@ impl<T: 'static + Trace> CcBoxPtr for CcBox<T> {
     }
 }
 
-/// for Cc and CcBox have very different size(A NonNull vs A value of T and metadata), so use dyn 
+/// for Cc and CcBox have very different size(A NonNull vs A value of T and metadata), so use dyn
 /// insted of enum dispatch could be beneficial?
 #[doc(hidden)]
 impl<T: Trace> CcBoxPtr for Cc<T> {
@@ -147,7 +147,8 @@ impl<T: Trace> Cc<T> {
                 _ptr: NonNull::new(Box::into_raw(Box::new(CcBox {
                     value,
                     metadata: BoxMetaData::with(roots.clone().into()),
-                }))).unwrap(),
+                })))
+                .unwrap(),
             }
         }
     }
@@ -166,7 +167,7 @@ impl<T: Trace> Deref for Cc<T> {
         if self.strong() > 0 {
             unsafe { &self._ptr.as_ref().value }
         } else {
-            panic!("Invalid access during cycle collection");
+            panic!("Invalid access to ptr {:#?} during cycle collection", self.get_ptr());
         }
     }
 }
@@ -184,7 +185,11 @@ impl<T: Trace> Drop for Cc<T> {
         #[cfg(test)]
         dbg!("Cc Drop here.");
         SyncCycleCollector::decrement(self);
-        self.metadata().root().try_into_sync_cc().unwrap().collect_cycles();
+        self.metadata()
+            .root()
+            .try_into_sync_cc()
+            .unwrap()
+            .collect_cycles();
     }
 }
 

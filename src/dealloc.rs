@@ -3,7 +3,7 @@ use std::{
     ptr::NonNull,
 };
 
-use crate::{CcBoxPtr, CcPtr, metadata::MetaData};
+use crate::{metadata::MetaData, CcBoxPtr, CcPtr};
 
 pub unsafe fn deallocate(ptr: NonNull<dyn CcBoxPtr>) {
     #[cfg(test)]

@@ -1,6 +1,6 @@
 use crate::Color;
-use std::sync::RwLock;
 use std::ptr::NonNull;
+use std::sync::RwLock;
 
 /// A `Tracer` is a callback function that is invoked for each `CcBoxPtr` owned
 /// by an instance of something.
@@ -26,7 +26,6 @@ pub struct AccBoxMetaData {
     // only be called by cycle collector, so no atomic needed
     pub crc: usize,
 }
-
 
 pub type AccPtr = NonNull<dyn AccBoxPtr>;
 

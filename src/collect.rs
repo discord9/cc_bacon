@@ -4,42 +4,40 @@ use std::sync::Arc;
 
 use core::cell::RefCell;
 
-
-use crate::{CcBoxPtr, Color, dealloc, CcPtr, metadata::MetaData, concurrent_collect::ParCycleCollector};
+use crate::{
+    concurrent_collect::ParCycleCollector, dealloc, metadata::MetaData, CcBoxPtr, CcPtr, Color,
+};
 // TODO: understand NonNull can be safe?
 
 /// all possible types of collector currently only sync/par, maybe add on the fly(2006)
 #[derive(Debug)]
-pub enum SyncOrConcurrent {
-    sync_cc( Arc<SyncCycleCollector>),
-    concurrent_cc(Arc<ParCycleCollector>)
+pub enum OneOfCollectors {
+    SyncCc(Arc<SyncCycleCollector>),
+    ConcurrentCc(Arc<ParCycleCollector>),
 }
 
-impl From<Arc<ParCycleCollector>> for SyncOrConcurrent {
+impl From<Arc<ParCycleCollector>> for OneOfCollectors {
     fn from(v: Arc<ParCycleCollector>) -> Self {
-        Self::concurrent_cc(v)
+        Self::ConcurrentCc(v)
     }
 }
 
-impl From<Arc<SyncCycleCollector>> for SyncOrConcurrent {
+impl From<Arc<SyncCycleCollector>> for OneOfCollectors {
     fn from(v: Arc<SyncCycleCollector>) -> Self {
-        Self::sync_cc(v)
+        Self::SyncCc(v)
     }
 }
 
-
-impl SyncOrConcurrent {
+impl OneOfCollectors {
     fn add_root(&self, elem: CcPtr) {
-        match self{
-            Self::sync_cc(cc) => {
-                cc.add_root(elem)
-            },
-            Self::concurrent_cc(cc) => todo!()
+        match self {
+            Self::SyncCc(cc) => cc.add_root(elem),
+            Self::ConcurrentCc(_cc) => todo!(),
         }
     }
 
     pub fn try_into_sync_cc(self) -> Result<Arc<SyncCycleCollector>, Self> {
-        if let Self::sync_cc(v) = self {
+        if let Self::SyncCc(v) = self {
             Ok(v)
         } else {
             Err(self)
@@ -47,7 +45,7 @@ impl SyncOrConcurrent {
     }
 
     pub fn try_into_concurrent_cc(self) -> Result<Arc<ParCycleCollector>, Self> {
-        if let Self::concurrent_cc(v) = self {
+        if let Self::ConcurrentCc(v) = self {
             Ok(v)
         } else {
             Err(self)
@@ -148,8 +146,6 @@ impl SyncCycleCollector {
             }
         }
     }
-
-
 
     pub fn collect_cycles(&self) {
         #[cfg(test)]
